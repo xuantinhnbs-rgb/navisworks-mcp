@@ -1,0 +1,74 @@
+name: Bug report
+description: Something does not work. / Báo lỗi.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or Vietnamese — both are fine. / Viết tiếng Anh hay tiếng Việt đều được.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area?
+      options:
+        - Connection / launching Navisworks
+        - Model tree, properties or search
+        - Selection, colour, hide or isolate
+        - Views and screenshots
+        - MCP client configuration
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you asked the model to do, which tool ran, and what it returned.
+      placeholder: |
+        I asked: "colour every panel red"
+        find_objects returned: {"ok": true, "count": 0, ...}
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: connection-check
+    attributes:
+      label: Output of `python test_connection.py`
+      description: This one command answers most environment questions at once (version, ProgID, all 36 operations).
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: "Windows 11 23H2 · Python 3.12.4 · Navisworks Manage 2026 · Claude Code 2.x"
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model the problem happens with
+      description: Source and rough size — an IFC exported from Revit behaves differently from an NWD federated from several files.
+      placeholder: "IFC exported from Revit 2024, ~500k triangles, ~800 objects"
+
+  - type: checkboxes
+    id: preconditions
+    attributes:
+      label: Before submitting
+      options:
+        - label: A model was open in Navisworks when the tool ran.
+          required: true
+        - label: I searched the existing issues.
+          required: true
