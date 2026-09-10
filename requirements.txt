@@ -8,4 +8,4 @@ mcp>=2.1.0
 pywin32>=306
 
 # Ghi anh chup cua so ra PNG
-Pillow>=10.0.0
+Pillow>=12.3.0
