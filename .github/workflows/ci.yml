@@ -34,6 +34,11 @@ jobs:
       - name: ruff check
         run: ruff check --output-format=github .
 
+      # Nhom test doc lap he dieu hanh: tai lieu khong duoc lech voi code.
+      # Chay ca tren Linux de bat loi nay som, truoc khi ma tran Windows khoi dong.
+      - name: Kiem tra tai lieu khop voi code
+        run: pytest tests/test_repo_layout.py
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     # Server chi chay tren Windows: toan bo duong di la COM cua Navisworks.
