@@ -56,8 +56,9 @@ pip install -r requirements.txt
 python test_connection.py          # tự tìm một file .nwd/.nwc trên máy để kiểm thử
 ```
 
-Khai báo server trong file cấu hình MCP của bạn (thay `<ĐƯỜNG-DẪN>` bằng nơi vừa
-clone về, và `<PYTHON>` bằng đường dẫn tới python.exe):
+Khai báo server trong file cấu hình MCP của bạn — chép từ
+[`mcp.json.example`](mcp.json.example), thay `<ĐƯỜNG-DẪN>` bằng nơi vừa clone về và
+`<PYTHON>` bằng đường dẫn tới python.exe:
 
 ```json
 {
