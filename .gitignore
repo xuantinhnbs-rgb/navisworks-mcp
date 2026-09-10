@@ -18,3 +18,11 @@ venv/
 *.png
 *.nwd
 *.nwf
+*.nwc
+
+# ...tru anh minh hoa cua tai lieu
+!docs/*.png
+
+# Cau hinh MCP that cua may nay (chua duong dan rieng) - chi commit file mau
+mcp.json
+.mcp.json
