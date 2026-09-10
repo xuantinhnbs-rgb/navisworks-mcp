@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Chi can quyen doc ma nguon.
+permissions:
+  contents: read
+
+# Push moi len cung mot nhanh se huy lan chay cu con dang do.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    # Lint khong cham vao COM nen chay tren Linux cho nhanh.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Cai ruff
+        run: pip install -r requirements-dev.txt
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    # Server chi chay tren Windows: toan bo duong di la COM cua Navisworks.
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    env:
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cai Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cai thu vien
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # compileall bao trum ca nhung file khong test nao import (test_connection.py),
+      # nen bat duoc loi cu phap o moi noi.
+      - name: Kiem tra cu phap toan bo ma nguon
+        run: python -m compileall -q navisworks_client.py screenshot.py server.py test_connection.py tests
+
+      # Test khong can Navisworks duoc cai: client ket noi lazy, nen viec dang ky
+      # tool khong cham vao ung dung nao.
+      - name: Chay test
+        run: pytest

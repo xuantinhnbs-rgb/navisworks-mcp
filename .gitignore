@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Cache cua cong cu phat trien
+.ruff_cache/
+.pytest_cache/
+
+# File tam & ban luu
+*.bak
+*.log
+*.tmp
+
+# Anh chup / file xuat ra khi chay thu
+*.png
+*.nwd
+*.nwf

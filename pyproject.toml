@@ -1,0 +1,32 @@
+# Cấu hình công cụ phát triển cho navisworks-mcp.
+#
+# Đây KHÔNG phải file đóng gói: server được chạy trực tiếp bằng đường dẫn tới
+# `server.py`, không cài qua pip. File này chỉ giữ cấu hình cho ruff và pytest,
+# để lint/test cho ra cùng một kết quả trên máy lập trình viên và trên CI.
+
+[tool.ruff]
+# Python 3.10 là bản thấp nhất được hỗ trợ (xem README).
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle - lỗi
+    "W",   # pycodestyle - cảnh báo
+    "F",   # pyflakes: biến/import không dùng, tên chưa định nghĩa
+    "I",   # isort: thứ tự import
+    "C4",  # comprehension viết vòng vo
+]
+# Cố tình KHÔNG bật "UP" (pyupgrade). Chữ ký của tool MCP dùng `Optional[...]` /
+# `List[...]`, và chính annotation đó sinh ra JSON schema mà AI nhìn thấy. Đổi
+# hàng loạt sang cú pháp PEP 604/585 không mang lại giá trị chức năng nào mà lại
+# có rủi ro thay đổi schema.
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff.lint.isort]
+# Ba module này nằm trong repo, không phải thư viện ngoài.
+known-first-party = ["navisworks_client", "screenshot", "server"]
