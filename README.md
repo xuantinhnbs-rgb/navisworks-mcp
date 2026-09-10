@@ -1,185 +1,224 @@
 # navisworks-mcp
 
+***English** · [Tiếng Việt](README.vi.md)*
+
 [![CI](https://github.com/xuantinhnbs-rgb/navisworks-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/xuantinhnbs-rgb/navisworks-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#c%C3%A0i-%C4%91%E1%BA%B7t)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](#requirements)
 
-Điều khiển Autodesk Navisworks trực tiếp từ AI qua Model Context Protocol.
+An MCP server that lets Claude — or any MCP client such as Claude Code, Claude
+Desktop, Cursor or Cline — drive **Autodesk Navisworks** running on your Windows
+machine: browse the model tree, read IFC/Revit properties, search, select,
+colour, hide, isolate, zoom, and capture the window.
 
-Kiểm chứng trên **Navisworks Manage 2026** (Roamer 23.3.1460.83), Python 3.14,
-Windows 10. Toàn bộ 36 phép thử end-to-end chạy trên mô hình thật đều PASS.
+Verified on **Navisworks Manage 2026** (Roamer 23.3.1460.83), Python 3.14,
+Windows 10. All 36 end-to-end checks pass against a real model.
 
-## Cách nó nói chuyện với Navisworks
+Every tool returns JSON with an `ok` key — `{"ok": true, ...}` on success,
+`{"ok": false, "error": "..."}` on failure. No tool ever lets a raw COM
+exception escape.
 
-Navisworks đăng ký một COM server ngoài tiến trình:
+![Navisworks driven by the MCP server: MSE wall panels found by name, coloured
+orange and zoomed to](docs/demo.png)
+
+*Everything above happened without a single click in Navisworks:
+`find_objects("PANEL")` → 375 matches, `set_color(...)` on twenty of them,
+`zoom_to_objects(...)`, `capture_screenshot(...)`.*
+
+## How it talks to Navisworks
+
+Navisworks registers an out-of-process COM server:
 
 ```
 HKLM\SOFTWARE\Classes\Navisworks.Document.23\CLSID
   -> LocalServer32 = C:\Program Files\Autodesk\Navisworks Manage 2026\Roamer.exe
 ```
 
-Từ đó lấy được **toàn bộ** COM API chứ không chỉ vài lệnh mở/lưu file:
+That handle gives you the **whole** COM API, not just open/save commands:
 
 ```python
 doc   = win32com.client.Dispatch("Navisworks.Document.23")
-state = doc.State          # InwOpState10: cây đối tượng, thuộc tính, tìm kiếm,
-                           # vùng chọn, tô màu, ẩn/hiện, viewpoint...
+state = doc.State          # InwOpState10: model tree, properties, search,
+                           # selection, colour, visibility, viewpoints...
 ```
 
-Không cần viết add-in .NET, không cần biên dịch gì. Server tự **bám vào bản
-Navisworks đang mở** nếu có (`GetActiveObject`), nếu chưa có thì khởi động một bản
-ở chế độ ẩn.
+No .NET add-in to write, nothing to compile. The server **attaches to a running
+Navisworks** if there is one (`GetActiveObject`), and starts a hidden instance
+otherwise.
 
-## Yêu cầu
+## Requirements
 
 - Windows
-- Autodesk Navisworks (Manage hoặc Simulate) — kiểm chứng trên **2026**, các bản
-  2022–2025 kết nối qua ProgID tương ứng trong `PROG_IDS` nhưng chưa kiểm chứng
-- Python 3.10 trở lên
+- Autodesk Navisworks (Manage or Simulate) — verified on **2026**; 2022–2025
+  connect through the matching ProgID in `PROG_IDS` but are unverified
+- Python 3.10 or newer
 
-## Cài đặt
+## Installation
 
 ```powershell
 git clone https://github.com/xuantinhnbs-rgb/navisworks-mcp.git
 cd navisworks-mcp
 pip install -r requirements.txt
-python test_connection.py          # tự tìm một file .nwd/.nwc trên máy để kiểm thử
+python test_connection.py          # finds a .nwd/.nwc on your machine and tests against it
 ```
 
-Khai báo server trong file cấu hình MCP của bạn (thay `<ĐƯỜNG-DẪN>` bằng nơi vừa
-clone về, và `<PYTHON>` bằng đường dẫn tới python.exe):
+Then declare the server in your MCP client's configuration. Copy
+[`mcp.json.example`](mcp.json.example) and replace `<PYTHON>` with the path to
+your `python.exe` and `<PATH>` with the directory you just cloned into:
 
 ```json
 {
   "mcpServers": {
     "navisworks": {
       "command": "<PYTHON>/python.exe",
-      "args": ["<ĐƯỜNG-DẪN>/navisworks-mcp/server.py"],
-      "cwd": "<ĐƯỜNG-DẪN>/navisworks-mcp",
+      "args": ["<PATH>/navisworks-mcp/server.py"],
+      "cwd": "<PATH>/navisworks-mcp",
       "env": { "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8" }
     }
   }
 }
 ```
 
-`PYTHONIOENCODING=utf-8` không phải tùy chọn: console Windows mặc định là cp1252 và
-mọi thông điệp tiếng Việt sẽ làm server chết vì `UnicodeEncodeError`.
+`PYTHONIOENCODING=utf-8` is not optional: the Windows console defaults to cp1252
+and any non-ASCII message will kill the server with `UnicodeEncodeError`.
 
-## Định danh đối tượng
+## Object identifiers
 
-Đối tượng được đánh địa chỉ bằng **chuỗi chỉ mục 1-based** tính từ gốc mô hình:
+Objects are addressed by a **1-based index path** counted from the model root:
 
 ```
-""                 gốc mô hình (cả file)
-"1"                con thứ nhất của gốc
-"1/1/1/2/1/1/1"    đi 7 tầng xuống
+""                 the model root (whole file)
+"1"                first child of the root
+"1/1/1/2/1/1/1"    seven levels down
 ```
 
-Đây chính là `InwOaPath.ArrayData` của Navisworks, chuyển hai chiều được. Lấy id từ
-`get_model_tree`, `find_objects` hoặc `get_selection` — đừng tự bịa.
+This is Navisworks' own `InwOaPath.ArrayData`, and it converts both ways. Get
+ids from `get_model_tree`, `find_objects` or `get_selection` — never invent one.
 
-Mô hình xuất từ Revit/IFC có cây điển hình:
+A model exported from Revit/IFC has a typical tree:
 
 ```
 File > Assembly > IfcSite > IfcBuilding > IfcBuildingStorey > Category > Family
      > Instance > Mesh
 ```
 
-## Danh sách tool
+## Tools
 
-| Nhóm | Tool |
+24 tools in total:
+
+| Group | Tools |
 |---|---|
-| Kết nối | `check_navisworks_connection`, `show_navisworks_window` |
-| Tài liệu | `open_model`, `append_model`, `save_model_as`, `get_model_info` |
-| Cây & thuộc tính | `get_model_tree`, `get_node_info`, `get_node_properties` |
-| Tìm kiếm | `find_objects` |
-| Vùng chọn | `get_selection`, `select_objects`, `clear_selection` |
-| Hiển thị | `set_color`, `set_transparency`, `reset_appearance`, `hide_objects`, `isolate_objects`, `show_all_objects` |
-| Góc nhìn | `zoom_to_objects`, `list_saved_views`, `apply_saved_view`, `list_selection_sets` |
-| Ảnh | `capture_screenshot` |
+| Connection | `check_navisworks_connection`, `show_navisworks_window` |
+| Document | `open_model`, `append_model`, `save_model_as`, `get_model_info` |
+| Tree & properties | `get_model_tree`, `get_node_info`, `get_node_properties` |
+| Search | `find_objects` |
+| Selection | `get_selection`, `select_objects`, `clear_selection` |
+| Appearance | `set_color`, `set_transparency`, `reset_appearance`, `hide_objects`, `isolate_objects`, `show_all_objects` |
+| Views | `zoom_to_objects`, `list_saved_views`, `apply_saved_view`, `list_selection_sets` |
+| Images | `capture_screenshot` |
 
-Mọi tool trả về JSON có khóa `ok`. Lỗi ra `{"ok": false, "error": "..."}` bằng tiếng
-Việt, không bao giờ ném ngoại lệ COM thô.
+## Performance: read this before a large query
 
-## Hiệu năng: đọc trước khi truy vấn lớn
+Every field in a result is one cross-process COM round trip. Measured on this
+machine:
 
-Mỗi trường trong một kết quả là một chuyến gọi COM liên tiến trình. Đo trên máy này:
-
-| Điều kiện | Chi phí mỗi đối tượng |
+| Condition | Cost per object |
 |---|---|
-| Cửa sổ ẩn, `detail="basic"` | ~19 ms |
-| Cửa sổ ẩn, `detail="full"` | ~26 ms |
-| **Cửa sổ đang hiện**, `detail="basic"` | **~200 ms** |
+| Window hidden, `detail="basic"` | ~19 ms |
+| Window hidden, `detail="full"` | ~26 ms |
+| **Window visible**, `detail="basic"` | **~200 ms** |
 
-Cửa sổ hiện làm mỗi lời gọi kéo theo một nhịp vẽ lại giao diện, đắt gấp 5–10 lần.
-Vì vậy: **truy vấn hàng loạt thì ẩn cửa sổ, chỉ hiện khi cần nhìn hoặc chụp ảnh.**
-`find_objects` mặc định `detail="basic"`; cần chi tiết một đối tượng thì gọi
-`get_node_info` cho riêng nó.
+A visible window makes every call drag a UI repaint along with it — 5–10× more
+expensive. So: **hide the window for bulk queries, show it only when you need to
+look at something or take a screenshot.** `find_objects` defaults to
+`detail="basic"`; call `get_node_info` on a single object when you need the
+detail.
 
-## Ba hành vi dễ hiểu nhầm của Navisworks
+## Three Navisworks behaviours that surprise people
 
-**1. Tìm kiếm phân biệt hoa thường theo mặc định của Navisworks.** Server đặt
-`case_sensitive=False` làm mặc định, vì tên cấu kiện cầu đường hầu hết viết hoa
-(`TAM PANEL...`). Tìm `"panel"` với `case_sensitive=True` trả về 0 kết quả trong khi
-`"PANEL"` trả về 374.
+**1. Search is case-sensitive by default in Navisworks.** The server sets
+`case_sensitive=False` instead, because component names in civil models are
+mostly upper case (`TAM PANEL...`). Searching `"panel"` with
+`case_sensitive=True` returns 0 results where `"PANEL"` returns 374.
 
-**2. Kết quả tìm kiếm bị gộp về node cha.** Navisworks mặc định "disjoint": khớp
-được một node thì con cháu của nó không liệt kê riêng. Tìm type chứa `"Ifc"` vì thế
-ra đúng **1** dòng (IfcSite — tổ tiên của mọi thứ) thay vì 779. Server tắt gộp theo
-mặc định; bật lại bằng `only_topmost_match=True`.
+**2. Search results collapse onto the parent node.** Navisworks defaults to
+"disjoint": once a node matches, its descendants are not listed separately.
+Searching for a type containing `"Ifc"` therefore returns exactly **1** row
+(IfcSite — ancestor of everything) instead of 779. The server turns collapsing
+off by default; re-enable it with `only_topmost_match=True`.
 
-**3. `isolate_objects` phải tự tính phần bù.** `InwOpSelection.Invert()` không cho
-phần bù theo cây: gọi nó trên một vùng chọn một node trả về **rỗng**, nên cách làm
-"chọn rồi đảo rồi ẩn" sẽ báo thành công mà ẩn đúng 0 đối tượng. Server đi từ gốc và
-ẩn mọi nhánh không phải tổ tiên cũng không phải con cháu của mục tiêu.
+**3. `isolate_objects` has to compute the complement itself.**
+`InwOpSelection.Invert()` does not give a tree-wise complement: calling it on a
+single-node selection returns **empty**, so the obvious "select, invert, hide"
+approach reports success while hiding exactly nothing. The server instead walks
+from the root and hides every branch that is neither an ancestor nor a
+descendant of the target.
 
-## Ba cạm bẫy pywin32 với API này
+## Three pywin32 traps with this API
 
-1. `doc.State` là **thuộc tính**, không phải hàm. `doc.State()` báo `Member not found`.
-2. Thuộc tính có tham số phải gọi qua tiền tố `Set`/`Get`:
+1. `doc.State` is a **property**, not a method. `doc.State()` raises
+   `Member not found`.
+2. Parameterised properties must be called through the `Set`/`Get` prefix:
    `state.SetSelectionHidden(sel, True)`.
-3. Con trỏ lấy qua `GetActiveObject` và qua `Dispatch` **không bind giống nhau**: cùng
-   một `IsModified`, một bên là hàm, bên kia là `bool` sẵn. Đọc qua helper `_member`.
+3. Pointers obtained via `GetActiveObject` and via `Dispatch` **do not bind the
+   same way**: the same `IsModified` is a method on one and a plain `bool` on the
+   other. Read through the `_member` helper.
 
-## Những thứ CHƯA làm được
+## Not supported yet
 
-Nói rõ để khỏi mất công thử:
+Stated plainly so you do not waste time trying:
 
-- **Clash Detective**: chưa nối. Clash nằm ngoài `InwOpState10`, cần đi qua
-  `Navisworks.Clash.Mfc.Interop` — chưa kiểm chứng nên không đưa vào.
-- **TimeLiner / Quantification**: tương tự, chưa nối.
-- **`state.CreatePicture`**: COM có hàm này nhưng trên Navisworks 2026 nó ném
-  `Catastrophic failure` ở mọi biến thể tham số, kể cả khi cửa sổ đang hiện. Vì vậy
-  `capture_screenshot` chụp thẳng cửa sổ Roamer qua GDI (`PrintWindow` với cờ
-  `PW_RENDERFULLCONTENT`, dự phòng `BitBlt`), có tự phát hiện ảnh trắng/đen trơn.
-- **`InwOaPath.Serialise`**: Navisworks trả về `Not implemented`, nên id dùng dãy chỉ
-  mục thay vì chuỗi serialise.
-- **Tạo/sửa selection set và viewpoint**: mới đọc và áp dụng, chưa tạo mới.
+- **Clash Detective**: not wired up. Clash lives outside `InwOpState10` and needs
+  `Navisworks.Clash.Mfc.Interop` — unverified, so it is not included.
+- **TimeLiner / Quantification**: likewise, not wired up.
+- **`state.CreatePicture`**: COM exposes it, but on Navisworks 2026 it raises
+  `Catastrophic failure` for every parameter combination, even with the window
+  visible. `capture_screenshot` therefore grabs the Roamer window directly
+  through GDI (`PrintWindow` with `PW_RENDERFULLCONTENT`, falling back to
+  `BitBlt`), with automatic detection of a blank white/black capture.
+- **`InwOaPath.Serialise`**: Navisworks returns `Not implemented`, which is why
+  ids are index paths rather than serialised strings.
+- **Creating or editing selection sets and viewpoints**: read and apply only, no
+  creation.
 
-## Kiểm thử
+## Testing
 
 ```powershell
-python test_connection.py                                  # tự tìm mô hình
-python test_connection.py "D:\du_an\cau_super_t.nwd"       # chỉ định mô hình
+python test_connection.py                                  # auto-detects a model
+python test_connection.py "D:\projects\bridge_super_t.nwd" # specific model
 ```
 
-Script chạy thật 36 thao tác trên mô hình thật, gồm cả các phép thử **âm** (id sai,
-màu ngoài khoảng, đuôi file sai phải báo lỗi) và một phép thử ngữ nghĩa: cô lập mà ẩn
-0 nhánh bị tính là FAIL, vì đó là kiểu hỏng "báo ok nhưng màn hình không đổi".
+The script runs 36 real operations against a real model, including **negative**
+checks (bad id, colour out of range, wrong file extension must all fail) and one
+semantic check: an isolate that hides 0 branches counts as FAIL, because that is
+exactly the "reports ok but the screen does not change" failure mode.
 
-## Phát triển
+## Development
 
 ```powershell
 pip install -r requirements-dev.txt
 ruff check .        # lint
-pytest              # 30 test, KHÔNG cần Navisworks được cài
+pytest              # 62 tests, Navisworks NOT required
 ```
 
-`tests/` chạy được trên máy không có Navisworks vì client kết nối lazy — việc đăng ký
-tool không chạm vào COM. Phần cần Navisworks thật nằm ở `test_connection.py`, chạy
-thủ công.
+`tests/` runs on a machine without Navisworks because the client connects
+lazily — registering tools never touches COM:
 
-## Giấy phép
+| File | Covers | Needs Windows |
+|---|---|---|
+| `test_server.py` | Id parsing, value conversion, COM member access, file validation, the `safe()` contract | partly |
+| `test_tool_contracts.py` | The tool surface the model sees: count, descriptions, JSON schemas | yes |
+| `test_repo_layout.py` | Documentation and code stay in sync — the tool tables in both READMEs must match `server.py` | no |
+
+The part that needs a real Navisworks lives in `test_connection.py` and is run
+by hand.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and the pre-PR checklist,
+[SECURITY.md](SECURITY.md) for the trust model (this server gives a language
+model control of an application on your machine), and [CHANGELOG.md](CHANGELOG.md)
+for release history.
+
+## License
 
 [MIT](LICENSE) © 2026 Xuân Tình

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "navisworks": {
+      "command": "C:/Python314/python.exe",
+      "args": [
+        "C:/path/to/navisworks-mcp/server.py"
+      ],
+      "cwd": "C:/path/to/navisworks-mcp",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
