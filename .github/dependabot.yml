@@ -3,11 +3,17 @@ version: 2
 updates:
   # pip quet de quy tu goc: mot lan quet bao ca requirements.txt lan
   # requirements-dev.txt. Khai bao them thu muc con se sinh PR trung.
+  #
+  # limit = 0 TAT PR nang phien ban thuong le, VAN GIU PR va canh bao bao mat.
+  # Ly do: requirements.txt ghi SAN (mcp>=2.1.0, pywin32>=306, Pillow>=10) - do la
+  # phien ban thap nhat con chay duoc, khong phai ban ghim. Nang san len ban moi
+  # nhat chi loai bo nhung phien ban van dung tot tren may nguoi dung, ma khong
+  # kiem chung them duoc gi: CI da cai ban moi nhat thoa man san o moi lan chay.
   - package-ecosystem: pip
     directory: "/"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "deps"
 
